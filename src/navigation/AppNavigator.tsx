@@ -1,11 +1,13 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useAuth } from '../context/AuthContext';
 
 // import các màn hình
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import LoginScreen from '../screens/LoginScreen';
 
 // Khai báo type cho Navigator
 export type AppTabParamList = {
@@ -18,7 +20,7 @@ const Tab = createBottomTabNavigator<AppTabParamList>();
 
 // 👇 Hàm render icon đặt ra ngoài component để tránh lỗi react/no-unstable-nested-components
 function renderTabIcon(routeName: string, focused: boolean, color: string, size: number) {
-  let iconName: string;
+  let iconName = '';
 
   switch (routeName) {
     case 'Home':
@@ -37,25 +39,48 @@ function renderTabIcon(routeName: string, focused: boolean, color: string, size:
   return <Icon name={iconName} size={size} color={color} />;
 }
 
+// Main Tab navigator (Profile tab shows Login when not logged in)
 export default function AppNavigator() {
+  const { isLoggedIn } = useAuth();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
         tabBarStyle: {
           backgroundColor: '#111',
           borderTopColor: '#222',
-          height: 65,
-          paddingBottom: 10,
+          height: 70,
+          paddingBottom: 8,
         },
-        tabBarIcon: ({ focused }) =>
-          renderTabIcon(route.name, focused, focused ? '#FF4500' : '#888', 26),
+        tabBarIcon: ({ focused, color, size }: any) =>
+          renderTabIcon(route.name, focused, color ?? (focused ? '#FF4500' : '#888'), size ?? 26),
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginTop: 0,
+        },
+        tabBarActiveTintColor: '#FF4500',
+        tabBarInactiveTintColor: '#888',
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ tabBarLabel: 'Trang chủ' }}
+      />
+
+      <Tab.Screen
+        name="Search"
+        component={SearchScreen}
+        options={{ tabBarLabel: 'Tìm kiếm' }}
+      />
+
+      <Tab.Screen
+        name="Profile"
+        component={isLoggedIn ? ProfileScreen : LoginScreen}
+        options={{ tabBarLabel: isLoggedIn ? 'Cá nhân' : 'Đăng nhập' }}
+      />
     </Tab.Navigator>
   );
 }
