@@ -1,125 +1,61 @@
 import React from 'react';
-import HomeScreen from '../screens/HomeScreen.tsx';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Icon from 'react-native-vector-icons/Ionicons';
+
+// import các màn hình
+import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
-import TicketScreen from '../screens/TicketScreen';
-import UserAccountScreen from '../screens/UserAccountScreen';
-import {COLORS, FONTSIZE, SPACING} from '../theme/theme';
-import CustomIcon from '../components/CustomIcon';
-import {View, StyleSheet} from 'react-native';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import ProfileScreen from '../screens/ProfileScreen';
 
-const Tab = createBottomTabNavigator();
-
-const TabNavigator = () => {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarHideOnKeyboard: true,
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: COLORS.Black,
-          borderTopWidth: 0,
-          height: SPACING.space_10 * 10,
-        },
-      }}>
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          tabBarShowLabel: false,
-          tabBarIcon: ({focused, color, size}) => {
-            return (
-              <View
-                style={[
-                  styles.activeTabBackground,
-                  focused ? {backgroundColor: COLORS.Orange} : {},
-                ]}>
-                <CustomIcon
-                  name="video"
-                  color={COLORS.White}
-                  size={FONTSIZE.size_30}
-                />
-              </View>
-            );
-          },
-        }}
-      />
-      <Tab.Screen
-        name="Search"
-        component={SearchScreen}
-        options={{
-          tabBarShowLabel: false,
-          tabBarIcon: ({focused, color, size}) => {
-            return (
-              <View
-                style={[
-                  styles.activeTabBackground,
-                  focused ? {backgroundColor: COLORS.Orange} : {},
-                ]}>
-                <CustomIcon
-                  name="search"
-                  color={COLORS.White}
-                  size={FONTSIZE.size_30}
-                />
-              </View>
-            );
-          },
-        }}
-      />
-      <Tab.Screen
-        name="Ticket"
-        component={TicketScreen}
-        options={{
-          tabBarShowLabel: false,
-          tabBarIcon: ({focused, color, size}) => {
-            return (
-              <View
-                style={[
-                  styles.activeTabBackground,
-                  focused ? {backgroundColor: COLORS.Orange} : {},
-                ]}>
-                <CustomIcon
-                  name="ticket"
-                  color={COLORS.White}
-                  size={FONTSIZE.size_30}
-                />
-              </View>
-            );
-          },
-        }}
-      />
-      <Tab.Screen
-        name="User"
-        component={UserAccountScreen}
-        options={{
-          tabBarShowLabel: false,
-          tabBarIcon: ({focused, color, size}) => {
-            return (
-              <View
-                style={[
-                  styles.activeTabBackground,
-                  focused ? {backgroundColor: COLORS.Orange} : {},
-                ]}>
-                <CustomIcon
-                  name="user"
-                  color={COLORS.White}
-                  size={FONTSIZE.size_30}
-                />
-              </View>
-            );
-          },
-        }}
-      />
-    </Tab.Navigator>
-  );
+// Khai báo type cho Navigator
+export type AppTabParamList = {
+  Home: undefined;
+  Search: undefined;
+  Profile: undefined;
 };
 
-const styles = StyleSheet.create({
-  activeTabBackground: {
-    backgroundColor: COLORS.Black,
-    padding: SPACING.space_18,
-    borderRadius: SPACING.space_18 * 10,
-  },
-});
+const Tab = createBottomTabNavigator<AppTabParamList>();
 
-export default TabNavigator;
+// 👇 Hàm render icon đặt ra ngoài component để tránh lỗi react/no-unstable-nested-components
+function renderTabIcon(routeName: string, focused: boolean, color: string, size: number) {
+  let iconName: string;
+
+  switch (routeName) {
+    case 'Home':
+      iconName = focused ? 'home' : 'home-outline';
+      break;
+    case 'Search':
+      iconName = focused ? 'search' : 'search-outline';
+      break;
+    case 'Profile':
+      iconName = focused ? 'person' : 'person-outline';
+      break;
+    default:
+      iconName = 'ellipse';
+  }
+
+  return <Icon name={iconName} size={size} color={color} />;
+}
+
+export default function AppNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: '#111',
+          borderTopColor: '#222',
+          height: 65,
+          paddingBottom: 10,
+        },
+        tabBarIcon: ({ focused }) =>
+          renderTabIcon(route.name, focused, focused ? '#FF4500' : '#888', 26),
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+}
