@@ -1,79 +1,117 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   Image,
-  TextInput,
   FlatList,
   ScrollView,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useNavigate } from 'react-router-native'; // 👈 Dùng React Router Native
 
 const { width } = Dimensions.get('window');
 
 interface Movie {
   id: number;
-  title: string;
-  image: string;
+  name: string;
+  description: string;
+  duration: number;
+  director: string;
+  actor: string;
+  releaseDate: string;
+  trailer: string;
+  posterUrl: string;
+  isComingSoon: boolean;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+  categoryNames: string[];
 }
 
-const popularMovies: Movie[] = [
-  { id: 1, title: 'Shazam', image: 'https://static1.srcdn.com/wordpress/wp-content/uploads/2023/03/dc-shazam-2-poster.jpg' },
-  { id: 2, title: 'John Wick: Chapter 4', image: 'https://image.tmdb.org/t/p/original/mj2Z9HnRSIEk3n7yVPoOY4Uzzfh.jpg' },
-];
-
-const upcomingMovies: Movie[] = [
-  { id: 3, title: 'The Flash', image: 'https://m.media-amazon.com/images/M/MV5BZDcwMzU4NWYtODIzZi00Yzg4LWJhOTAtOTQ2ZDA4NmFlYmFlXkEyXkFqcGdeQXVyMTY1MTU3NDY5._V1_.jpg' },
-  { id: 4, title: 'Transformers: Rise of the Beasts', image: 'https://sportshub.cbsistatic.com/i/2023/05/08/b3064901-06b9-4c52-8905-456de0b2e435/transformers-rise-of-the-beasts-wheeljack-poster.jpg?auto=webp&width=2025&height=3000&crop=0.675:1,smart' },
-];
-
 export default function HomeScreen() {
+  const navigate = useNavigate(); // ✅ Hook điều hướng kiểu web
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        // ⚠️ Nếu chạy Android Emulator, dùng 10.0.2.2 thay vì localhost
+        const res = await fetch('http://10.0.2.2:8080/api/movies');
+        const data = await res.json();
+        setMovies(data);
+      } catch (error) {
+        console.error('Error fetching movies:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMovies();
+  }, []);
+
+  // ✅ Lọc đúng: đang chiếu & sắp chiếu
+  const nowPlayingMovies = movies.filter((m) => m.isComingSoon);
+  const upcomingMovies = movies.filter((m) => m.isComingSoon);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="search-outline" size={20} color="#aaa" />
-        <TextInput
-          placeholder="Search your Movies..."
-          placeholderTextColor="#aaa"
-          style={styles.searchInput}
-        />
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Now Playing */}
         <Text style={styles.sectionTitle}>Now Playing</Text>
-        <View style={styles.nowPlayingCard}>
-          <Image
-            source={{ uri: 'https://image.tmdb.org/t/p/original/mj2Z9HnRSIEk3n7yVPoOY4Uzzfh.jpg' }}
-            style={styles.nowPlayingImage}
-          />
-          <View style={styles.ratingRow}>
-            <Icon name="star" color="gold" size={14} />
-            <Text style={styles.ratingText}>8.0 (1024)</Text>
-          </View>
-          <Text style={styles.movieTitle}>John Wick: Chapter 4</Text>
-          <View style={styles.tagsRow}>
-            <View style={styles.tag}><Text style={styles.tagText}>Action</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>Thriller</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>Crime</Text></View>
-          </View>
-        </View>
+        {nowPlayingMovies.length > 0 ? (
+          <TouchableOpacity
+            style={styles.nowPlayingCard}
+            onPress={() => navigate(`/movie/${nowPlayingMovies[0].id}`)} // ✅ Dùng React Router Native
+          >
+            <Image
+              source={{ uri: nowPlayingMovies[0].posterUrl }}
+              style={styles.nowPlayingImage}
+            />
+            <View style={styles.ratingRow}>
+              <Icon name="star" color="gold" size={14} />
+              <Text style={styles.ratingText}>8.0 (1024)</Text>
+            </View>
+            <Text style={styles.movieTitle}>{nowPlayingMovies[0].name}</Text>
+            <View style={styles.tagsRow}>
+              {nowPlayingMovies[0].categoryNames.map((cat) => (
+                <View key={cat} style={styles.tag}>
+                  <Text style={styles.tagText}>{cat}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <Text style={{ color: '#ccc' }}>No movies currently playing.</Text>
+        )}
 
         {/* Popular */}
         <Text style={styles.sectionTitle}>Popular</Text>
         <FlatList
           horizontal
-          data={popularMovies}
+          data={nowPlayingMovies}
           keyExtractor={(item) => item.id.toString()}
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={styles.movieCard}>
-              <Image source={{ uri: item.image }} style={styles.movieImage} />
-              <Text style={styles.movieName}>{item.title}</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.movieCard}
+              onPress={() => navigate(`/movie/${item.id}`)}
+            >
+              <Image source={{ uri: item.posterUrl }} style={styles.movieImage} />
+              <Text style={styles.movieName}>{item.name}</Text>
+            </TouchableOpacity>
           )}
         />
 
@@ -85,10 +123,13 @@ export default function HomeScreen() {
           keyExtractor={(item) => item.id.toString()}
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={styles.movieCard}>
-              <Image source={{ uri: item.image }} style={styles.movieImage} />
-              <Text style={styles.movieName}>{item.title}</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.movieCard}
+              onPress={() => navigate(`/movie/${item.id}`)}
+            >
+              <Image source={{ uri: item.posterUrl }} style={styles.movieImage} />
+              <Text style={styles.movieName}>{item.name}</Text>
+            </TouchableOpacity>
           )}
         />
       </ScrollView>
@@ -102,20 +143,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     paddingHorizontal: 16,
     paddingTop: 40,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#111',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    height: 40,
-    marginBottom: 16,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#fff',
-    marginLeft: 8,
   },
   sectionTitle: {
     color: '#fff',
@@ -149,12 +176,15 @@ const styles = StyleSheet.create({
   tagsRow: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   tag: {
     backgroundColor: '#222',
     borderRadius: 12,
     paddingVertical: 4,
     paddingHorizontal: 8,
+    margin: 2,
   },
   tagText: {
     color: '#ccc',
@@ -173,5 +203,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 6,
     fontSize: 13,
+    width: 120,
+    textAlign: 'center',
   },
 });

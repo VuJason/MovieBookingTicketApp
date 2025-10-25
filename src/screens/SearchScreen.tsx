@@ -1,30 +1,68 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, FlatList, Image, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, FlatList, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 interface Movie {
   id: number;
-  title: string;
-  image: string;
+  name: string;
+  description: string;
+  duration: number;
+  director: string;
+  actor: string;
+  releaseDate: string;
+  trailer: string;
+  posterUrl: string;
+  isComingSoon: boolean;
+  endDate: string;
+  categoryNames: string[];
 }
-
-const allMovies: Movie[] = [
-  { id: 1, title: 'John Wick: Chapter 4', image: 'https://image.tmdb.org/t/p/original/mj2Z9HnRSIEk3n7yVPoOY4Uzzfh.jpg' },
-  { id: 2, title: 'Shazam', image: 'https://static1.srcdn.com/wordpress/wp-content/uploads/2023/03/dc-shazam-2-poster.jpg' },
-  { id: 3, title: 'The Flash', image: 'https://m.media-amazon.com/images/M/MV5BZDcwMzU4NWYtODIzZi00Yzg4LWJhOTAtOTQ2ZDA4NmFlYmFlXkEyXkFqcGdeQXVyMTY1MTU3NDY5._V1_.jpg' },
-  { id: 4, title: 'Transformers', image: 'https://sportshub.cbsistatic.com/i/2023/05/08/b3064901-06b9-4c52-8905-456de0b2e435/transformers-rise-of-the-beasts-wheeljack-poster.jpg?auto=webp&width=2025&height=3000&crop=0.675:1,smart' },
-];
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredMovies = allMovies.filter((movie) =>
-    movie.title.toLowerCase().includes(query.toLowerCase())
-  );
+  // Hàm gọi API
+  const fetchMovies = async (searchText: string) => {
+    if (!searchText.trim()) {
+      setMovies([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(
+        `http://10.0.2.2:8080/api/movies/search?name=${encodeURIComponent(searchText)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data: Movie[] = await response.json();
+      setMovies(data);
+    } catch (err: any) {
+      setError(err.message);
+      setMovies([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Gọi API sau khi người dùng dừng nhập 0.5 giây (debounce)
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchMovies(query);
+    }, 500);
+    return () => clearTimeout(delay);
+  }, [query]);
 
   return (
     <View style={styles.container}>
-      {/* Search bar */}
+      {/* Ô tìm kiếm */}
       <View style={styles.searchContainer}>
         <Icon name="search-outline" size={20} color="#aaa" />
         <TextInput
@@ -36,22 +74,34 @@ export default function SearchScreen() {
         />
       </View>
 
-      {filteredMovies.length > 0 ? (
+      {loading ? (
+        <ActivityIndicator size="large" color="#fff" style={{ marginTop: 40 }} />
+      ) : error ? (
+        <Text style={styles.errorText}>Error: {error}</Text>
+      ) : movies.length > 0 ? (
         <FlatList
-          data={filteredMovies}
+          data={movies}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.movieCard}>
-              <Image source={{ uri: item.image }} style={styles.image} />
-              <Text style={styles.title}>{item.title}</Text>
+              <Image source={{ uri: item.posterUrl }} style={styles.image} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{item.name}</Text>
+                <Text style={styles.desc} numberOfLines={2}>
+                  {item.description}
+                </Text>
+                <Text style={styles.category}>
+                  {item.categoryNames.join(', ')}
+                </Text>
+              </View>
             </View>
           )}
         />
-      ) : (
+      ) : query ? (
         <View style={styles.emptyView}>
           <Text style={styles.emptyText}>No movies found.</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -79,7 +129,7 @@ const styles = StyleSheet.create({
   },
   movieCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
     backgroundColor: '#111',
     borderRadius: 10,
@@ -94,7 +144,17 @@ const styles = StyleSheet.create({
   title: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  desc: {
+    color: '#bbb',
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  category: {
+    color: '#888',
+    fontSize: 12,
   },
   emptyView: {
     flex: 1,
@@ -104,5 +164,10 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#888',
     fontSize: 16,
+  },
+  errorText: {
+    color: 'red',
+    marginTop: 40,
+    textAlign: 'center',
   },
 });
