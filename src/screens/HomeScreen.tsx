@@ -150,7 +150,10 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.movieCard}
-              onPress={() => navigate(`/movie/${item.id}`)}
+              onPress={() => {
+                console.log('Clicked movie:', { id: item.id, name: item.name });
+                navigate(`/movie/${item.id}`);
+              }}
             >
               <Image source={{ uri: item.posterUrl }} style={styles.movieImage} />
               <Text style={styles.movieName}>{item.name}</Text>
@@ -168,7 +171,10 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.movieCard}
-              onPress={() => navigate(`/movie/${item.id}`)}
+              onPress={() => {
+                console.log('Clicked movie:', { id: item.id, name: item.name });
+                navigate(`/movie/${item.id}`);
+              }}
             >
               <Image source={{ uri: item.posterUrl }} style={styles.movieImage} />
               <Text style={styles.movieName}>{item.name}</Text>

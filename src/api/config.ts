@@ -3,7 +3,7 @@ import EncryptedStorage from 'react-native-encrypted-storage';
 
 // API Base URL Configuration
 const API_BASE_URL = __DEV__ 
-  ? 'http://10.0.2.16:8080/api'  // Development - Android Emulator
+  ? 'http://10.0.2.2:8080/api'  // Development - Android Emulator (10.0.2.2 maps to localhost)
   : 'https://your-production-api.com/api'; // Production
 
 // Create Axios instance

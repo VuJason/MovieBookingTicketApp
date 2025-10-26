@@ -12,15 +12,17 @@ import {
   Keyboard,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { AxiosDebug } from '../components/AxiosDebug';
+import { runApiTests } from '../utils/apiTest';
 
 const LoginScreen = ({ navigation }: any) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(''); // Pre-fill with test credentials
+  const [password, setPassword] = useState(''); // Pre-fill with test credentials
   const [showPassword, setShowPassword] = useState(false);
+  const [isTestingApi, setIsTestingApi] = useState(false);
   const { login, isLoading } = useAuth();
 
   const handleLogin = async () => {
@@ -44,6 +46,27 @@ const LoginScreen = ({ navigation }: any) => {
     if (success) {
       // Navigate back to previous screen or home
       navigation.goBack();
+    }
+  };
+
+  const handleTestApi = async () => {
+    setIsTestingApi(true);
+    try {
+      await runApiTests();
+      Alert.alert(
+        'API Test Complete',
+        'Check console logs for detailed results',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('API Test Error:', error);
+      Alert.alert(
+        'API Test Failed',
+        'Check console logs for error details',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsTestingApi(false);
     }
   };
 
@@ -128,8 +151,21 @@ const LoginScreen = ({ navigation }: any) => {
             <Text style={styles.signupButtonText}>Tạo tài khoản mới</Text>
           </TouchableOpacity>
 
-          {/* Axios Debug Panel */}
-          <AxiosDebug />
+          {/* API Test Button - Only in development */}
+          {__DEV__ && (
+            <TouchableOpacity 
+              style={[styles.testApiButton, isTestingApi && styles.testApiButtonDisabled]}
+              onPress={handleTestApi}
+              disabled={isTestingApi}
+            >
+              {isTestingApi ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.testApiButtonText}>TEST API CONNECTION</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
         </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -232,6 +268,23 @@ const styles = StyleSheet.create({
     color: '#FF4500',
     fontSize: 16,
     fontWeight: '500',
+  },
+  testApiButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    height: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  testApiButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  testApiButtonDisabled: {
+    backgroundColor: '#666',
   },
 });
 
