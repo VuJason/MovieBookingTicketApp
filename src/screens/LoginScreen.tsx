@@ -10,20 +10,38 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { AxiosDebug } from '../components/AxiosDebug';
 
 const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { setIsLoggedIn } = useAuth();
+  const { login, isLoading } = useAuth();
 
-  const handleLogin = () => {
-    // TODO: Implement actual login logic here
-    if (email && password) {
-      setIsLoggedIn(true);
+  const handleLogin = async () => {
+    // Validate input
+    if (!email.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập email');
+      return;
+    }
+    
+    if (!password.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu');
+      return;
+    }
+
+    // Call login API
+    const success = await login({
+      email: email.trim(),
+      password: password,
+    });
+
+    if (success) {
       // Navigate back to previous screen or home
       navigation.goBack();
     }
@@ -52,6 +70,8 @@ const LoginScreen = ({ navigation }: any) => {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
             />
           </View>
 
@@ -64,10 +84,12 @@ const LoginScreen = ({ navigation }: any) => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              editable={!isLoading}
             />
             <TouchableOpacity 
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
+              disabled={isLoading}
             >
               <Icon 
                 name={showPassword ? "eye-outline" : "eye-off-outline"} 
@@ -82,10 +104,18 @@ const LoginScreen = ({ navigation }: any) => {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.loginButton}
+            style={[
+              styles.loginButton,
+              isLoading && styles.loginButtonDisabled
+            ]}
             onPress={handleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.divider}>
@@ -97,6 +127,9 @@ const LoginScreen = ({ navigation }: any) => {
           <TouchableOpacity style={styles.signupButton}>
             <Text style={styles.signupButtonText}>Tạo tài khoản mới</Text>
           </TouchableOpacity>
+
+          {/* Axios Debug Panel */}
+          <AxiosDebug />
         </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -168,6 +201,9 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#666',
   },
   divider: {
     flexDirection: 'row',
