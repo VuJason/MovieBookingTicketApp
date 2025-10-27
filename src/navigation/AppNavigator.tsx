@@ -6,13 +6,15 @@ import { useAuth } from '../context/AuthContext';
 // import các màn hình
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
+import TicketScreen from '../screens/TicketScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import LoginScreen from '../screens/LoginScreen';
+import AuthNavigator from './AuthNavigator';
 
 // Khai báo type cho Navigator
 export type AppTabParamList = {
   Home: undefined;
   Search: undefined;
+  Tickets: undefined;
   Profile: undefined;
 };
 
@@ -28,6 +30,9 @@ function renderTabIcon(routeName: string, focused: boolean, color: string, size:
       break;
     case 'Search':
       iconName = focused ? 'search' : 'search-outline';
+      break;
+    case 'Tickets':
+      iconName = focused ? 'ticket' : 'ticket-outline';
       break;
     case 'Profile':
       iconName = focused ? 'person' : 'person-outline';
@@ -77,8 +82,14 @@ export default function AppNavigator() {
       />
 
       <Tab.Screen
+        name="Tickets"
+        component={TicketScreen}
+        options={{ tabBarLabel: 'Vé' }}
+      />
+
+      <Tab.Screen
         name="Profile"
-        component={isLoggedIn ? ProfileScreen : LoginScreen}
+        component={isLoggedIn ? ProfileScreen : AuthNavigator}
         options={{ tabBarLabel: isLoggedIn ? 'Cá nhân' : 'Đăng nhập' }}
       />
     </Tab.Navigator>

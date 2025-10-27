@@ -5,286 +5,497 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
   ActivityIndicator,
   Alert,
-  ScrollView,
+  SafeAreaView,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { runApiTests } from '../utils/apiTest';
+import { useAuth } from '../context/AuthContext';
+import { ValidationUtils } from '../utils/validation';
 
-const LoginScreen = ({ navigation }: any) => {
-  const [email, setEmail] = useState(''); // Pre-fill with test credentials
-  const [password, setPassword] = useState(''); // Pre-fill with test credentials
+const { width, height } = Dimensions.get('window');
+
+interface LoginScreenProps {
+  navigation: any;
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isTestingApi, setIsTestingApi] = useState(false);
   const { login, isLoading } = useAuth();
 
   const handleLogin = async () => {
-    // Validate input
-    if (!email.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập email');
-      return;
-    }
-    
-    if (!password.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu');
+    // Validate form
+    const validation = ValidationUtils.validateLoginForm(email, password);
+    if (!validation.isValid) {
+      Alert.alert('Lỗi nhập liệu', validation.message || 'Vui lòng kiểm tra thông tin nhập vào');
       return;
     }
 
-    // Call login API
-    const success = await login({
-      email: email.trim(),
-      password: password,
-    });
+    try {
+      // Call login API
+      const success = await login({
+        email: email.trim(),
+        password: password,
+      });
 
-    if (success) {
-      // Navigate back to previous screen or home
-      navigation.goBack();
+      if (success) {
+        // Show success message
+        Alert.alert(
+          'Đăng nhập thành công',
+          'Chào mừng bạn đến với CinemaBook!',
+          [
+            {
+              text: 'Tiếp tục',
+              onPress: () => navigation.replace('Main')
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.message === 'INVALID_CREDENTIALS') {
+          Alert.alert(
+            'Đăng nhập thất bại',
+            'Tài khoản hoặc mật khẩu không tồn tại. Vui lòng kiểm tra lại thông tin đăng nhập.',
+            [
+              { text: 'Thử lại', style: 'default' },
+              {
+                text: 'Đăng ký tài khoản',
+                style: 'default',
+                onPress: () => navigation.navigate('Register')
+              }
+            ]
+          );
+        } else if (error.message === 'NETWORK_ERROR') {
+          Alert.alert(
+            'Lỗi kết nối',
+            'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Lỗi',
+            'Đã xảy ra lỗi không xác định. Vui lòng thử lại.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
     }
   };
 
-  const handleTestApi = async () => {
-    setIsTestingApi(true);
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Quên mật khẩu',
+      'Tính năng này sẽ được cập nhật sớm!',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleSignUp = () => {
+    console.log('Navigate to Register clicked');
+    console.log('Navigation object:', navigation);
     try {
-      await runApiTests();
-      Alert.alert(
-        'API Test Complete',
-        'Check console logs for detailed results',
-        [{ text: 'OK' }]
-      );
+      navigation.navigate('Register');
     } catch (error) {
-      console.error('API Test Error:', error);
+      console.error('Navigation error:', error);
+      // Fallback: show alert if navigation fails
       Alert.alert(
-        'API Test Failed',
-        'Check console logs for error details',
+        'Navigation Error',
+        'Unable to navigate to Register screen. Please try again.',
         [{ text: 'OK' }]
       );
-    } finally {
-      setIsTestingApi(false);
     }
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Movie Ticket</Text>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-        <View style={styles.formContainer}>
-          <Text style={styles.title}>Đăng nhập</Text>
-          
-          <View style={styles.inputContainer}>
-            <Icon name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#888"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Icon name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Mật khẩu"
-              placeholderTextColor="#888"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              editable={!isLoading}
-            />
-            <TouchableOpacity 
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeIcon}
-              disabled={isLoading}
-            >
-              <Icon 
-                name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                size={20} 
-                color="#888" 
-              />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[
-              styles.loginButton,
-              isLoading && styles.loginButtonDisabled
-            ]}
-            onPress={handleLogin}
-            disabled={isLoading}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          {/* Background Gradient */}
+          <LinearGradient
+            colors={['#000', '#1a0a00', '#000']}
+            style={styles.backgroundGradient}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
-            )}
-          </TouchableOpacity>
+            {/* Header Section */}
+            <View style={styles.headerSection}>
+              <View style={styles.logoContainer}>
+                <LinearGradient
+                  colors={['#FF6B35', '#FF4500']}
+                  style={styles.logoGradient}
+                >
+                  <Icon name="film" size={40} color="#fff" />
+                </LinearGradient>
+                <Text style={styles.logoText}>CinemaBook</Text>
+                <Text style={styles.logoSubtext}>Your Movie Experience</Text>
+              </View>
+            </View>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>HOẶC</Text>
-            <View style={styles.dividerLine} />
-          </View>
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              <View style={styles.formContainer}>
+                {/* Email Input */}
+                <View style={[styles.inputGroup, styles.firstInputGroup]}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <View style={styles.inputContainer}>
+                    <Icon name="mail-outline" size={20} color="#FF4500" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor="#666"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                    />
+                  </View>
+                </View>
 
-          <TouchableOpacity style={styles.signupButton}>
-            <Text style={styles.signupButtonText}>Tạo tài khoản mới</Text>
-          </TouchableOpacity>
+                {/* Password Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <View style={styles.inputContainer}>
+                    <Icon name="lock-closed-outline" size={20} color="#FF4500" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#666"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                      editable={!isLoading}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeButton}
+                      disabled={isLoading}
+                    >
+                      <Icon
+                        name={showPassword ? "eye-outline" : "eye-off-outline"}
+                        size={20}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-          {/* API Test Button - Only in development */}
-          {__DEV__ && (
-            <TouchableOpacity 
-              style={[styles.testApiButton, isTestingApi && styles.testApiButtonDisabled]}
-              onPress={handleTestApi}
-              disabled={isTestingApi}
-            >
-              {isTestingApi ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <Text style={styles.testApiButtonText}>TEST API CONNECTION</Text>
-              )}
-            </TouchableOpacity>
-          )}
+                {/* Forgot Password */}
+                <TouchableOpacity
+                  style={styles.forgotPasswordContainer}
+                  onPress={handleForgotPassword}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
 
-        </View>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+                {/* Login Button */}
+                <TouchableOpacity
+                  style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                  onPress={handleLogin}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={isLoading ? ['#666', '#555'] : ['#FF6B35', '#FF4500']}
+                    style={styles.loginButtonGradient}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <>
+                        <Icon name="log-in-outline" size={20} color="#fff" />
+                        <Text style={styles.loginButtonText}>Sign In</Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Register Section */}
+                <View style={styles.registerSection}>
+                  <View style={styles.registerPromptContainer}>
+                    <Text style={styles.registerPromptText}>Don't have an account? </Text>
+                    <TouchableOpacity onPress={handleSignUp} activeOpacity={0.7}>
+                      <Text style={styles.registerLinkText}>Sign up here</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.registerButton}
+                    onPress={handleSignUp}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.registerButtonContent}>
+                      <Icon name="person-add" size={18} color="#FF4500" />
+                      <Text style={styles.registerButtonText}>Create New Account</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Social Login Buttons */}
+                <View style={styles.socialButtonsContainer}>
+                  <TouchableOpacity style={styles.socialButton}>
+                    <Icon name="logo-google" size={20} color="#DB4437" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.socialButton}>
+                    <Icon name="logo-facebook" size={20} color="#4267B2" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.socialButton}>
+                    <Icon name="logo-apple" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Already have account link */}
+                <View style={styles.alreadyHaveAccountContainer}>
+                  <Text style={styles.alreadyHaveAccountText}>Already have an account? </Text>
+                  <TouchableOpacity onPress={() => { }}>
+                    <Text style={styles.alreadyHaveAccountLink}>Just sign in above</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
+    backgroundColor: '#000',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  backgroundGradient: {
+    flex: 1,
+  },
+  headerSection: {
+    flex: 0.4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 20,
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
+  },
+  logoGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#FF4500',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   logoText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#FF4500',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  logoSubtext: {
+    fontSize: 16,
+    color: '#888',
+    fontWeight: '300',
+  },
+  formSection: {
+    flex: 0.6,
+    justifyContent: 'flex-start',
   },
   formContainer: {
-    paddingHorizontal: 30,
+    paddingHorizontal: 32,
+    paddingTop: 10,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFF',
-    marginBottom: 30,
-    textAlign: 'center',
+  inputGroup: {
+    marginBottom: 20,
+  },
+  firstInputGroup: {
+    marginTop: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    marginBottom: 8,
+    marginLeft: 4,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#222',
-    borderRadius: 8,
-    marginBottom: 15,
-    paddingHorizontal: 15,
-    height: 50,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,69,0,0.3)',
+    paddingHorizontal: 16,
+    height: 56,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    color: '#FFF',
+    color: '#fff',
     fontSize: 16,
+    fontWeight: '400',
   },
-  eyeIcon: {
-    padding: 5,
+  eyeButton: {
+    padding: 4,
   },
-  forgotPassword: {
+  forgotPasswordContainer: {
     alignSelf: 'flex-end',
-    marginBottom: 25,
+    marginBottom: 24,
   },
   forgotPasswordText: {
     color: '#FF4500',
     fontSize: 14,
+    fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#FF4500',
-    borderRadius: 8,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  loginButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 24,
+    shadowColor: '#FF4500',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   loginButtonDisabled: {
-    backgroundColor: '#666',
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  divider: {
+  loginButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  loginButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#333',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   dividerText: {
-    color: '#888',
-    paddingHorizontal: 10,
+    color: '#666',
     fontSize: 14,
+    fontWeight: '500',
+    paddingHorizontal: 16,
   },
-  signupButton: {
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  socialButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  registerSection: {
+    marginBottom: 20,
+  },
+  registerPromptContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  registerPromptText: {
+    color: '#888',
+    fontSize: 15,
+  },
+  registerLinkText: {
+    color: '#FF4500',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  registerButton: {
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#FF4500',
-    borderRadius: 8,
-    height: 50,
+    backgroundColor: 'transparent',
+  },
+  registerButtonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  signupButtonText: {
+  registerButtonText: {
     color: '#FF4500',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
   },
-  testApiButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    height: 45,
-    alignItems: 'center',
+  alreadyHaveAccountContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 15,
-    marginBottom: 10,
+    alignItems: 'center',
+    marginTop: 16,
   },
-  testApiButtonText: {
-    color: '#FFF',
+  alreadyHaveAccountText: {
+    color: '#888',
     fontSize: 14,
-    fontWeight: 'bold',
   },
-  testApiButtonDisabled: {
-    backgroundColor: '#666',
+  alreadyHaveAccountLink: {
+    color: '#FF4500',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

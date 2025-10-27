@@ -29,10 +29,40 @@ export interface CastMember {
 
 export interface ShowTime {
   id: number;
-  time: string;
-  price: number;
-  availableSeats: number;
-  totalSeats: number;
+  movie: {
+    id: number;
+    name: string;
+    description: string;
+    duration: number;
+    director: string;
+    actor: string;
+    releaseDate: string;
+    trailer: string;
+    posterUrl: string;
+    isComingSoon: boolean;
+    endDate: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  room: {
+    id: number;
+    roomNumber: number;
+    status: string;
+    totalRows: number;
+    seatsPerRow: number;
+    type: {
+      id: number;
+      name: string;
+    };
+  };
+  startTime: string; // Format: "2025-10-26 15:30" (date and time separated by space)
+  endTime: string; // Format: "2025-10-26 15:31"
+}
+
+export interface ShowtimeByDate {
+  date: string; // Format: "2024-01-15"
+  dateDisplay: string; // Format: "Today", "Mon", "Tue", etc.
+  showtimes: ShowTime[];
 }
 
 export interface Cinema {

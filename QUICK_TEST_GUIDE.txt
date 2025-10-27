@@ -1,0 +1,120 @@
+========================================
+HƯỚNG DẪN TEST NHANH ZALOPAY
+========================================
+
+HIỆN TẠI:
+✅ Payment URL đã có
+✅ Manual confirm API đã có
+⚠️ Cần thêm redirect_url
+⚠️ Webhook cần ngrok (optional)
+
+========================================
+CÁCH 1: TEST VỚI MANUAL CONFIRM (DỄ NHẤT)
+========================================
+
+1. BACKEND: Thêm redirect_url
+------------------------------
+Trong code tạo ZaloPay order, thêm dòng:
+
+order.put("redirect_url", "moviebooking://payment/callback?status=success&bookingId=" + bookingId);
+
+2. TEST FLOW
+------------
+a. Đặt vé và thanh toán trên ZaloPay
+b. Sau khi thanh toán xong, browser sẽ redirect về app
+c. App tự động:
+   - Check booking status
+   - Nếu PENDING → Gọi manual confirm API
+   - Hiển thị success screen
+
+3. MONITOR STATUS
+-----------------
+Trong app, navigate đến: /booking-status
+- Xem real-time status
+- Nếu vẫn PENDING, nhấn nút "Manual Confirm"
+
+========================================
+CÁCH 2: TEST VỚI WEBHOOK (ĐẦY ĐỦ)
+========================================
+
+1. SETUP NGROK
+--------------
+# Download ngrok: https://ngrok.com/download
+ngrok http 8080
+
+# Lấy URL: https://abc123.ngrok.io
+
+2. CẬP NHẬT BACKEND
+-------------------
+Trong code tạo ZaloPay order:
+
+order.put("callback_url", "https://abc123.ngrok.io/api/payment/webhook/zalopay");
+order.put("redirect_url", "moviebooking://payment/callback?status=success&bookingId=" + bookingId);
+
+3. TEST FLOW
+------------
+a. Đặt vé và thanh toán
+b. ZaloPay sẽ:
+   - Gọi webhook → Backend update status CONFIRMED
+   - Redirect browser → App mở lại
+c. App check status → Đã CONFIRMED
+
+========================================
+TEST DEEP LINK (KHÔNG CẦN THANH TOÁN)
+========================================
+
+Chạy lệnh này để test xem app có mở được không:
+
+adb shell am start -W -a android.intent.action.VIEW -d "moviebooking://payment/callback?status=success&bookingId=28"
+
+Hoặc chạy file: test-deeplink.bat
+
+========================================
+DEBUG CHECKLIST
+========================================
+
+□ Backend đã thêm redirect_url
+□ Deep link test thành công (app mở được)
+□ Thanh toán test trên ZaloPay
+□ Browser redirect về app
+□ App hiển thị callback screen
+□ Booking status = CONFIRMED
+
+Nếu status vẫn PENDING:
+□ Check webhook có được gọi không (backend logs)
+□ Thử manual confirm trong /booking-status screen
+□ Check manual confirm API có hoạt động không
+
+========================================
+API ENDPOINTS CẦN THIẾT
+========================================
+
+1. GET /bookings/{id}
+   - Check booking status
+   - Response: { status: "PENDING" | "CONFIRMED" | "CANCELLED" }
+
+2. PUT /bookings/{id}/confirm
+   - Manual confirm payment
+   - Response: { message: "Success", status: "CONFIRMED" }
+
+3. POST /bookings/{id}/zalopay-payment
+   - Create payment
+   - Response: { order_url: "...", return_code: 1 }
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Q: Redirect không hoạt động?
+A: Check redirect_url có trong order data không
+
+Q: App không mở?
+A: Test deep link bằng adb command
+
+Q: Status vẫn PENDING?
+A: Dùng manual confirm button trong /booking-status
+
+Q: Webhook không được gọi?
+A: Cần ngrok, hoặc dùng manual confirm thay thế
+
+========================================

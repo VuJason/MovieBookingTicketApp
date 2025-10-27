@@ -55,50 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await apiService.storeToken(response.data);
         setIsLoggedIn(true);
         
-        Alert.alert(
-          'Đăng nhập thành công',
-          'Chào mừng bạn đến với ứng dụng!',
-          [{ text: 'OK' }]
-        );
-        
         return true;
       } else {
         console.log('Login failed - Invalid response:', { code: response.code, message: response.message });
-        // Xử lý lỗi từ server
-        const errorMessage = response.message || `Đăng nhập thất bại (Code: ${response.code})`;
-        Alert.alert(
-          'Lỗi đăng nhập',
-          errorMessage,
-          [{ text: 'Thử lại' }]
-        );
-        
-        return false;
+        // Throw error để LoginScreen xử lý
+        throw new Error('INVALID_CREDENTIALS');
       }
     } catch (error) {
       console.error('Login error:', error);
       
-      let errorMessage = 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-          errorMessage = 'Kết nối quá thời gian. Vui lòng thử lại.';
-        } else if (error.message.includes('Network request failed')) {
-          errorMessage = 'Lỗi mạng. Kiểm tra kết nối internet và thử lại.';
-        } else if (error.message.includes('HTTP')) {
-          errorMessage = 'Server không phản hồi. Vui lòng thử lại sau.';
-        }
+      // Re-throw error để LoginScreen xử lý
+      if (error instanceof Error && error.message === 'INVALID_CREDENTIALS') {
+        throw error;
       }
       
-      Alert.alert(
-        'Lỗi kết nối',
-        errorMessage,
-        [
-          { text: 'Thử lại', onPress: () => {} },
-          { text: 'Hủy', style: 'cancel' }
-        ]
-      );
-      
-      return false;
+      // Throw network error
+      throw new Error('NETWORK_ERROR');
     } finally {
       setIsLoading(false);
     }

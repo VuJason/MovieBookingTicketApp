@@ -12,17 +12,20 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useParams, useNavigate } from 'react-router-native';
-import { Movie, CastMember } from '../types/Movie';
+import { Movie, CastMember, ShowTime, ShowtimeByDate } from '../types/Movie';
 import { apiService } from '../api/apicall';
+import { groupShowtimesByDate } from '../utils/showtimeUtils';
+import WeeklyShowtimeSelector from '../components/WeeklyShowtimeSelector';
 
 const { width, height } = Dimensions.get('window');
 
 interface MovieDetailScreenProps {
-  navigation: any;
+  navigation?: any;
   route?: {
     params?: {
       movieId?: number;
@@ -34,10 +37,14 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
   const [movie, setMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showtimes, setShowtimes] = useState<ShowTime[]>([]);
+  const [showtimesByDate, setShowtimesByDate] = useState<ShowtimeByDate[]>([]);
+  const [isLoadingShowtimes, setIsLoadingShowtimes] = useState(false);
+  const [selectedShowtime, setSelectedShowtime] = useState<ShowTime | null>(null);
 
   // React Router navigation
   const navigate = useNavigate();
-  
+
   // Get movie ID from React Router params
   const { id } = useParams<{ id: string }>();
   const movieId = id ? parseInt(id, 10) : route?.params?.movieId;
@@ -45,6 +52,7 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
   useEffect(() => {
     if (movieId) {
       fetchMovieDetail();
+      fetchShowtimes();
     } else {
       setError('No movie ID provided');
       setIsLoading(false);
@@ -55,9 +63,9 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await apiService.getMovieDetail(movieId!);
-      
+
       if (response && response.data) {
         // Transform API response to match our Movie interface
         const movieData: Movie = {
@@ -81,8 +89,10 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
           totalRatings: 100, // Default total ratings
           cast: [] // Empty cast array since API doesn't provide cast info
         };
-        
+
         setMovie(movieData);
+        console.log('Movie data loaded:', movieData);
+        console.log('Trailer URL:', movieData.trailer);
       } else {
         throw new Error(response?.message || 'No data received from API');
       }
@@ -92,21 +102,45 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
         stack: error.stack,
         response: error.response
       });
-      
+
       const errorMessage = error.message || 'Failed to load movie details';
       setError(errorMessage);
-      
+
       // Show a more user-friendly error message
       Alert.alert(
-        'Connection Error',
-        'Unable to connect to the server. Please check your internet connection and try again.',
+        'Lỗi kết nối',
+        'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet và thử lại.',
         [
-          { text: 'Retry', onPress: fetchMovieDetail },
-          { text: 'Cancel', style: 'cancel' }
+          { text: 'Thử lại', onPress: fetchMovieDetail },
+          { text: 'Hủy', style: 'cancel' }
         ]
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchShowtimes = async () => {
+    try {
+      setIsLoadingShowtimes(true);
+      const response = await apiService.getShowtimesByMovieId(movieId!);
+
+      if (response && response.data) {
+        setShowtimes(response.data);
+
+        // Group showtimes by date
+        const grouped = groupShowtimesByDate(response.data);
+        setShowtimesByDate(grouped);
+      } else {
+        setShowtimes([]);
+        setShowtimesByDate([]);
+      }
+    } catch (error: any) {
+      console.error('Error fetching showtimes:', error);
+      setShowtimes([]);
+      setShowtimesByDate([]);
+    } finally {
+      setIsLoadingShowtimes(false);
     }
   };
 
@@ -131,16 +165,87 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
     return `${hours}h ${mins}m`;
   };
 
+  const handleShowtimeSelect = (showtime: ShowTime | null) => {
+    setSelectedShowtime(showtime);
+  };
+
   const handleSelectSeats = () => {
-    navigation?.navigate?.('SeatBooking', { movieId: movie?.id });
+    if (!selectedShowtime) {
+      Alert.alert(
+        'Chưa chọn suất chiếu',
+        'Vui lòng chọn suất chiếu trước khi đặt ghế.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    console.log('Navigating to SeatBooking with:', {
+      movieId: movie?.id,
+      showtimeId: selectedShowtime.id,
+      showtime: selectedShowtime,
+    });
+
+    // Try both navigation methods
+    if (navigation?.navigate) {
+      // React Navigation style
+      navigation.navigate('SeatBooking', {
+        movieId: movie?.id,
+        showtimeId: selectedShowtime.id,
+        showtime: selectedShowtime,
+        movieName: movie?.name,
+        posterUrl: movie?.posterUrl,
+        BgImage: movie?.posterUrl,
+        PosterImage: movie?.posterUrl,
+      });
+    } else {
+      // React Router Native style
+      navigate('/seat-booking', {
+        state: {
+          movieId: movie?.id,
+          showtimeId: selectedShowtime.id,
+          showtime: selectedShowtime,
+          movieName: movie?.name,
+          posterUrl: movie?.posterUrl,
+          BgImage: movie?.posterUrl,
+          PosterImage: movie?.posterUrl,
+        }
+      });
+    }
   };
 
-  const handlePlayTrailer = () => {
-    // Implement trailer playback
-    console.log('Play trailer');
+  const handlePlayTrailer = async () => {
+    if (!movie?.trailer) {
+      Alert.alert('Không có Trailer', 'Trailer không khả dụng cho phim này.');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(movie.trailer);
+      if (supported) {
+        await Linking.openURL(movie.trailer);
+      } else {
+        Alert.alert('Lỗi', 'Không thể mở URL trailer');
+      }
+    } catch (error) {
+      console.error('Error opening trailer:', error);
+      Alert.alert('Lỗi', 'Không thể mở trailer');
+    }
   };
 
+  // Helper function to extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string): string | null => {
+    console.log('Extracting YouTube ID from URL:', url);
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    const videoId = (match && match[2].length === 11) ? match[2] : null;
+    console.log('Extracted video ID:', videoId);
+    return videoId;
+  };
 
+  // State for selected date
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Get available dates from showtimes
   const renderGenreTag = (genre: string, index: number) => (
     <View key={index} style={styles.genreTag}>
       <Text style={styles.genreText}>{genre}</Text>
@@ -159,7 +264,7 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF4500" />
-        <Text style={styles.loadingText}>Loading movie details...</Text>
+        <Text style={styles.loadingText}>Đang tải thông tin phim...</Text>
       </View>
     );
   }
@@ -168,9 +273,9 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
     return (
       <View style={styles.loadingContainer}>
         <Icon name="alert-circle-outline" size={48} color="#FF4500" />
-        <Text style={styles.errorText}>{error || 'Failed to load movie'}</Text>
+        <Text style={styles.errorText}>{error || 'Không thể tải phim'}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchMovieDetail}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>Thử lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -179,7 +284,7 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header with backdrop */}
         <View style={styles.headerContainer}>
@@ -203,16 +308,12 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
                 >
                   <Icon name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity style={styles.favoriteButton}>
                   <Icon name="heart-outline" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
 
-              {/* Play button */}
-              <TouchableOpacity style={styles.playButton} onPress={handlePlayTrailer}>
-                <Icon name="play" size={32} color="#fff" />
-              </TouchableOpacity>
             </LinearGradient>
           </ImageBackground>
         </View>
@@ -221,23 +322,23 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
         <View style={styles.movieInfoContainer}>
           <View style={styles.posterSection}>
             <Image source={{ uri: movie.posterUrl }} style={styles.posterImage} />
-            
+
             <View style={styles.movieDetails}>
               <View style={styles.durationContainer}>
                 <Icon name="time-outline" size={16} color="#888" />
                 <Text style={styles.duration}>{formatDuration(movie.duration)}</Text>
               </View>
-              
+
               <Text style={styles.movieTitle}>{movie.name}</Text>
-              
+
               <View style={styles.genresContainer}>
                 {movie.categoryNames.map(renderGenreTag)}
               </View>
-              
+
               {movie.tagline && (
                 <Text style={styles.tagline}>{movie.tagline}</Text>
               )}
-              
+
               <View style={styles.ratingContainer}>
                 <Icon name="star" size={20} color="#FFD700" />
                 <Text style={styles.rating}>
@@ -256,38 +357,99 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
           {/* Cast & Crew */}
           <View style={styles.castContainer}>
             <View style={styles.castHeader}>
-              <Text style={styles.castTitle}>Cast & Crew</Text>
+              <Text style={styles.castTitle}>Diễn viên & Đạo diễn</Text>
             </View>
-            
+
             {/* Director */}
             <View style={styles.crewItem}>
-              <Text style={styles.crewRole}>Director</Text>
+              <Text style={styles.crewRole}>Đạo diễn</Text>
               <Text style={styles.crewName}>{movie.director}</Text>
             </View>
-            
+
             {/* Actor */}
             <View style={styles.crewItem}>
-              <Text style={styles.crewRole}>Actor</Text>
+              <Text style={styles.crewRole}>Diễn viên</Text>
               <Text style={styles.crewName}>{movie.actor}</Text>
-            </View>
-            
-            {/* Movie Status */}
-            <View style={styles.statusContainer}>
-              <View style={[styles.statusBadge, { backgroundColor: movie.isComingSoon ? '#FF6B35' : '#4CAF50' }]}>
-                <Text style={styles.statusText}>
-                  {movie.isComingSoon ? 'Coming Soon' : 'Now Showing'}
-                </Text>
-              </View>
             </View>
           </View>
 
+          {/* Trailer Section */}
+          <View style={styles.trailerContainer}>
+            <Text style={styles.trailerTitle}>Trailer</Text>
+            {movie.trailer ? (
+              <TouchableOpacity
+                style={styles.youtubeContainer}
+                onPress={handlePlayTrailer}
+                activeOpacity={0.8}
+              >
+                <View style={styles.trailerThumbnail}>
+                  <Image
+                    source={{
+                      uri: `https://img.youtube.com/vi/${getYouTubeVideoId(movie.trailer) || 'default'}/maxresdefault.jpg`
+                    }}
+                    style={styles.trailerImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.playOverlay}>
+                    <Icon name="play" size={48} color="#fff" />
+                  </View>
+                </View>
+                <Text style={styles.trailerText}>Nhấn để xem trailer</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.noTrailerContainer}>
+                <Icon name="play-circle-outline" size={48} color="#666" />
+                <Text style={styles.noTrailerText}>
+                  Không có trailer
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Showtime Section */}
+          <View style={styles.showtimeContainer}>
+            <Text style={styles.showtimeTitle}>Suất chiếu</Text>
+
+            {/* Weekly Showtime Selector */}
+            {isLoadingShowtimes ? (
+              <View style={styles.loadingShowtimesContainer}>
+                <ActivityIndicator size="small" color="#FF4500" />
+                <Text style={styles.loadingShowtimesText}>Đang tải suất chiếu...</Text>
+              </View>
+            ) : (
+              <WeeklyShowtimeSelector
+                showtimes={showtimes}
+                onShowtimeSelect={handleShowtimeSelect}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+              />
+            )}
+
+            {/* Show selected showtime info */}
+            {selectedShowtime && (
+              <View style={styles.selectedShowtimeInfo}>
+                <Icon name="checkmark-circle" size={20} color="#4CAF50" />
+                <Text style={styles.selectedShowtimeText}>
+                  Đã chọn: {selectedShowtime.room.type.name} lúc {selectedShowtime.startTime.split(' ')[1]}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Select Seats Button */}
-          <TouchableOpacity style={styles.selectSeatsButton} onPress={handleSelectSeats}>
+          <TouchableOpacity
+            style={[styles.selectSeatsButton, !selectedShowtime && styles.selectSeatsButtonDisabled]}
+            onPress={handleSelectSeats}
+            disabled={!selectedShowtime}
+          >
             <LinearGradient
-              colors={['#FF6B35', '#FF4500']}
+              colors={selectedShowtime ? ['#FF6B35', '#FF4500'] : ['#666', '#555']}
               style={styles.selectSeatsGradient}
             >
-              <Text style={styles.selectSeatsText}>Select Seats</Text>
+              <Icon name="ticket-outline" size={20} color="#fff" style={styles.buttonIcon} />
+              <Text style={styles.selectSeatsText}>
+                {selectedShowtime ? 'Chọn ghế' : 'Vui lòng chọn suất chiếu'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -369,17 +531,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   movieInfoContainer: {
     flex: 1,
@@ -527,14 +678,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  selectSeatsButtonDisabled: {
+    opacity: 0.6,
+  },
   selectSeatsGradient: {
     paddingVertical: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   selectSeatsText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  selectedShowtimeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  selectedShowtimeText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   crewItem: {
     marginBottom: 12,
@@ -549,19 +725,82 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  statusContainer: {
-    marginTop: 16,
-    alignItems: 'flex-start',
+  trailerContainer: {
+    marginBottom: 24,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusText: {
+  trailerTitle: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 20,
     fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  youtubeContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  trailerThumbnail: {
+    height: 200,
+    width: '100%',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trailerImage: {
+    height: 200,
+    width: '100%',
+    backgroundColor: '#111',
+  },
+  playOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trailerText: {
+    color: '#fff',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#111',
+  },
+  noTrailerContainer: {
+    height: 200,
+    backgroundColor: '#111',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  noTrailerText: {
+    color: '#666',
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Showtime Styles
+  showtimeContainer: {
+    marginBottom: 24,
+  },
+  showtimeTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  loadingShowtimesContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingShowtimesText: {
+    color: '#888',
+    fontSize: 14,
+    marginTop: 8,
   },
 });
 

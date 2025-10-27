@@ -54,7 +54,7 @@ export default function HomeScreen() {
     fetchMovies();
   }, []);
 
-  const nowPlayingMovies = movies.filter((m) => !m.isComingSoon);
+  const nowPlayingMovies = movies.filter((m) => m.isComingSoon);
   const upcomingMovies = movies.filter((m) => m.isComingSoon);
 
   // 🚀 Auto-scroll logic

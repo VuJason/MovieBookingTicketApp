@@ -1,0 +1,225 @@
+========================================
+HƯỚNG DẪN SỬA BACKEND CHO ZALOPAY
+========================================
+
+VẤN ĐỀ HIỆN TẠI:
+✅ Payment URL đã OK (không còn NULL)
+⚠️ Booking vẫn PENDING (chưa CONFIRMED)
+⚠️ Không redirect về app sau khi thanh toán
+
+GIẢI PHÁP:
+
+CÓ 2 CÁCH CONFIRM BOOKING:
+1. Webhook (tự động) - Cần public URL (ngrok)
+2. Manual API (backup) - Frontend tự gọi sau khi thanh toán
+
+Frontend đã tích hợp cả 2 cách!
+
+1. THÊM REDIRECT_URL KHI TẠO ZALOPAY ORDER
+==========================================
+
+Trong ZaloPayService.java, khi tạo order:
+
+Map<String, Object> order = new HashMap<>();
+order.put("app_id", appId);
+order.put("app_trans_id", appTransId);
+order.put("app_user", "user123");
+order.put("amount", amount);
+order.put("description", description);
+order.put("bank_code", "");
+order.put("item", "[]");
+order.put("embed_data", "{}");
+order.put("callback_url", "http://YOUR_SERVER/api/payment/webhook/zalopay");
+
+// ← THÊM DÒNG NÀY
+order.put("redirect_url", "moviebooking://payment/callback?status=success&bookingId=" + bookingId);
+
+2. LƯU PAYMENT_URL VÀO DATABASE
+================================
+
+Sau khi nhận response từ ZaloPay:
+
+// Response từ ZaloPay
+Map<String, Object> response = callZaloPayAPI(order);
+String orderUrl = (String) response.get("order_url");
+
+// Lưu vào database
+booking.setPaymentUrl(orderUrl);
+booking.setStatus("PENDING");
+bookingRepository.save(booking);
+
+// Trả về cho frontend
+return Map.of(
+    "order_url", orderUrl,
+    "zp_trans_token", response.get("zp_trans_token"),
+    "return_code", response.get("return_code")
+);
+
+3. XỬ LÝ WEBHOOK CALLBACK
+==========================
+
+QUAN TRỌNG: Webhook này được ZaloPay gọi TRỰC TIẾP từ server của họ.
+Không phải từ mobile app!
+
+@PostMapping("/webhook/zalopay")
+public ResponseEntity<?> handleZaloPayCallback(@RequestBody Map<String, Object> callbackData) {
+    try {
+        System.out.println("=== ZaloPay Webhook Received ===");
+        System.out.println("Callback data: " + callbackData);
+        
+        // Verify MAC
+        if (!zaloPayService.verifyCallback(callbackData)) {
+            System.err.println("MAC verification failed!");
+            return ResponseEntity.ok(Map.of(
+                "return_code", -1,
+                "return_message", "MAC verification failed"
+            ));
+        }
+
+        // Parse data
+        String dataStr = callbackData.get("data").toString();
+        Map<String, Object> data = gson.fromJson(dataStr, Map.class);
+        String appTransId = data.get("app_trans_id").toString();
+        Long bookingId = Long.valueOf(appTransId.split("_")[1]);
+
+        System.out.println("Booking ID: " + bookingId);
+
+        // Update booking status
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow();
+        System.out.println("Current booking status: " + booking.getStatus());
+        
+        booking.setStatus("CONFIRMED"); // ← QUAN TRỌNG: Đổi sang CONFIRMED
+        booking.setPaymentTime(LocalDateTime.now());
+        bookingRepository.save(booking);
+        
+        System.out.println("Booking updated to CONFIRMED");
+
+        // Send email confirmation
+        try {
+            emailService.sendBookingConfirmation(booking);
+            System.out.println("Email sent successfully");
+        } catch (Exception e) {
+            System.err.println("Failed to send email: " + e.getMessage());
+            // Don't fail the whole callback if email fails
+        }
+
+        return ResponseEntity.ok(Map.of(
+            "return_code", 1,
+            "return_message", "success"
+        ));
+    } catch (Exception e) {
+        System.err.println("Webhook processing failed: " + e.getMessage());
+        e.printStackTrace();
+        return ResponseEntity.ok(Map.of(
+            "return_code", 0,
+            "return_message", "Processing failed: " + e.getMessage()
+        ));
+    }
+}
+
+KIỂM TRA WEBHOOK:
+- Webhook URL phải public (không phải localhost)
+- Nếu đang dev local, dùng ngrok: ngrok http 8080
+- Cập nhật callback_url trong ZaloPay config
+- Check logs xem ZaloPay có gọi webhook không
+
+4. KIỂM TRA CONFIG
+==================
+
+application.properties:
+
+zalopay.app.id=YOUR_APP_ID
+zalopay.key1=YOUR_KEY1
+zalopay.key2=YOUR_KEY2
+zalopay.endpoint=https://sb-openapi.zalopay.vn/v2/create
+zalopay.callback.url=http://YOUR_SERVER/api/payment/webhook/zalopay
+
+5. API GET BOOKING STATUS (ĐÃ CÓ)
+===================================
+
+@GetMapping("/bookings/{id}")
+public ResponseEntity<?> getBookingById(@PathVariable Long id) {
+    try {
+        Booking booking = bookingRepository.findById(id).orElseThrow();
+        return ResponseEntity.ok(booking);
+    } catch (Exception e) {
+        return ResponseEntity.status(404).body(Map.of(
+            "message", "Booking not found"
+        ));
+    }
+}
+
+6. API MANUAL CONFIRM (ĐÃ CÓ) ✅
+=================================
+
+Đây là backup khi webhook không hoạt động:
+
+@PutMapping("/{bookingId}/confirm")
+public ResponseEntity<?> confirmBookingPayment(@PathVariable Long bookingId) {
+    try {
+        Booking booking = bookingService.confirmBookingPayment(bookingId);
+        return ResponseEntity.ok(Map.of(
+            "message", "Đã xác nhận thanh toán thành công",
+            "bookingId", booking.getId(),
+            "status", booking.getStatus(),
+            "confirmedAt", LocalDateTime.now()
+        ));
+    } catch (RuntimeException e) {
+        return ResponseEntity.badRequest().body(Map.of(
+            "error", e.getMessage(),
+            "bookingId", bookingId
+        ));
+    }
+}
+
+FRONTEND FLOW:
+1. User thanh toán thành công trên ZaloPay
+2. Redirect về app: moviebooking://payment/callback?status=success&bookingId=28
+3. Frontend check booking status
+4. Nếu vẫn PENDING → Tự động gọi manual confirm API
+5. Hiển thị success screen
+
+7. TEST FLOW
+============
+
+A. TEST WEBHOOK (QUAN TRỌNG!)
+------------------------------
+Webhook chỉ hoạt động nếu:
+1. Server có public URL (không phải localhost)
+2. Dùng ngrok cho dev: ngrok http 8080
+3. Cập nhật callback_url trong code với ngrok URL
+4. ZaloPay sẽ gọi webhook SAU KHI thanh toán thành công
+
+Kiểm tra logs:
+- "ZaloPay Webhook Received" - Webhook được gọi
+- "Booking updated to CONFIRMED" - Status đã update
+- Nếu không thấy logs này = webhook không được gọi
+
+B. TEST REDIRECT
+----------------
+1. Tạo booking mới
+2. Gọi API create payment
+3. Kiểm tra response có order_url không
+4. Mở order_url trong browser
+5. Thanh toán test (ZaloPay sandbox)
+6. Sau khi thanh toán xong, ZaloPay sẽ:
+   - Gọi webhook (server callback) → Update status
+   - Redirect browser (client callback) → Mở app
+
+DEEP LINK FORMAT:
+moviebooking://payment/callback?status=success&bookingId=123
+
+C. DEBUG
+--------
+Nếu webhook không được gọi:
+- Check ngrok đang chạy
+- Check callback_url đúng chưa
+- Check ZaloPay sandbox logs
+- Test webhook bằng Postman với sample data
+
+Nếu redirect không hoạt động:
+- Check redirect_url có trong order data không
+- Check deep link config trong AndroidManifest.xml
+- Test deep link: adb shell am start -W -a android.intent.action.VIEW -d "moviebooking://payment/callback?status=success&bookingId=123"
+
+========================================

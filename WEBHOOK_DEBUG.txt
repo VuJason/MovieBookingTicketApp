@@ -1,0 +1,118 @@
+========================================
+DEBUG ZALOPAY WEBHOOK
+========================================
+
+VẤN ĐỀ: Booking vẫn PENDING, không chuyển sang CONFIRMED
+NGUYÊN NHÂN: Webhook không được gọi hoặc không xử lý đúng
+
+GIẢI PHÁP:
+
+1. WEBHOOK CHỈ HOẠT ĐỘNG VỚI PUBLIC URL
+========================================
+
+ZaloPay KHÔNG THỂ gọi webhook đến localhost!
+
+Cần dùng ngrok để expose local server:
+
+# Cài ngrok (nếu chưa có)
+https://ngrok.com/download
+
+# Chạy ngrok
+ngrok http 8080
+
+# Ngrok sẽ cho bạn URL như:
+https://abc123.ngrok.io
+
+2. CẬP NHẬT CALLBACK_URL
+=========================
+
+Trong code backend, khi tạo ZaloPay order:
+
+order.put("callback_url", "https://abc123.ngrok.io/api/payment/webhook/zalopay");
+
+KHÔNG DÙNG:
+order.put("callback_url", "http://localhost:8080/api/payment/webhook/zalopay");
+order.put("callback_url", "http://10.0.2.2:8080/api/payment/webhook/zalopay");
+
+3. KIỂM TRA WEBHOOK CÓ ĐƯỢC GỌI
+================================
+
+Thêm logging vào webhook endpoint:
+
+@PostMapping("/webhook/zalopay")
+public ResponseEntity<?> handleZaloPayCallback(@RequestBody Map<String, Object> callbackData) {
+    System.out.println("========================================");
+    System.out.println("WEBHOOK CALLED AT: " + LocalDateTime.now());
+    System.out.println("Callback data: " + callbackData);
+    System.out.println("========================================");
+    
+    // ... rest of code
+}
+
+Nếu KHÔNG thấy log này sau khi thanh toán = webhook không được gọi
+
+4. TEST WEBHOOK VỚI POSTMAN
+============================
+
+Để test webhook mà không cần thanh toán thật:
+
+POST http://localhost:8080/api/payment/webhook/zalopay
+Content-Type: application/json
+
+{
+  "data": "{\"app_trans_id\":\"251027_28\",\"app_time\":1730000000000,\"amount\":15000}",
+  "mac": "test_mac_value",
+  "type": 1
+}
+
+Chú ý: MAC verification sẽ fail, nhưng ít nhất bạn biết endpoint có hoạt động không
+
+5. ZALOPAY SANDBOX TIMING
+==========================
+
+ZaloPay sandbox có thể mất 1-2 phút để gọi webhook sau khi thanh toán.
+Đừng lo lắng nếu không thấy ngay lập tức.
+
+Kiểm tra:
+- Ngrok logs (xem có request đến không)
+- Backend logs (xem webhook có được xử lý không)
+- Database (xem status có update không)
+
+6. ALTERNATIVE: POLLING
+=======================
+
+Nếu webhook không hoạt động (do network/firewall), có thể dùng polling:
+
+Frontend gọi API check booking status mỗi 3 giây:
+
+setInterval(async () => {
+  const response = await apiService.getBookingStatus(bookingId);
+  if (response.data.status === 'CONFIRMED') {
+    // Payment confirmed!
+    clearInterval(interval);
+    navigate('/payment/success');
+  }
+}, 3000);
+
+7. PRODUCTION SETUP
+===================
+
+Trong production:
+- Dùng domain thật (không phải ngrok)
+- Cấu hình SSL certificate
+- Whitelist ZaloPay IPs nếu có firewall
+- Monitor webhook logs
+
+========================================
+CHECKLIST
+========================================
+
+□ Ngrok đang chạy
+□ Callback URL dùng ngrok URL (không phải localhost)
+□ Webhook endpoint có logging
+□ Test thanh toán và đợi 1-2 phút
+□ Check ngrok logs
+□ Check backend logs
+□ Check database status
+
+========================================

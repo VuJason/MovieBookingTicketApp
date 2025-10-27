@@ -1,0 +1,145 @@
+========================================
+TICKET SCREEN - HƯỚNG DẪN
+========================================
+
+✅ ĐÃ TẠO
+==========
+
+1. TicketScreen.tsx
+   - Hiển thị danh sách vé đã đặt
+   - Design đẹp với gradient, QR code placeholder
+   - Tab "Sắp tới" và "Đã xem"
+   - Pull to refresh
+   - Empty states (chưa login, chưa có vé)
+
+2. Tab Navigation
+   - Thêm tab "Vé" với icon ticket
+   - Vị trí: Home | Tìm kiếm | Vé | Cá nhân
+
+3. API Integration
+   - getUserBookings() - Lấy danh sách vé của user
+   - Endpoint: GET /bookings/user
+
+========================================
+FEATURES
+========================================
+
+1. TICKET CARD
+   - Poster phim
+   - Tên phim
+   - Ngày, giờ chiếu
+   - Phòng chiếu
+   - Số ghế
+   - Tổng tiền
+   - QR code (placeholder)
+   - Status badge (Confirmed/Pending/Cancelled)
+
+2. TABS
+   - Sắp tới: Vé chưa xem
+   - Đã xem: Vé đã qua ngày chiếu
+
+3. EMPTY STATES
+   - Chưa đăng nhập: Hiển thị nút "Đăng nhập"
+   - Chưa có vé: Hiển thị nút "Đặt vé ngay"
+
+4. PULL TO REFRESH
+   - Kéo xuống để refresh danh sách vé
+
+========================================
+BACKEND API CẦN THIẾT
+========================================
+
+1. GET /bookings/my-bookings
+Authorization: Bearer {token}
+
+Response (ACTUAL FORMAT):
+[
+  {
+    "id": 35,
+    "status": "SUCCESS",
+    "bookingTime": "2025-10-27T15:27:53.441053",
+    "totalAmount": 150000,
+    "paymentUrl": "https://...",
+    "room": {
+      "id": 1,
+      "roomNumber": "1",
+      "type": "Phòng 1 - Standard"
+    },
+    "tickets": [
+      {
+        "seatId": 85,
+        "seatCode": "I5",
+        "price": 70000
+      }
+    ],
+    "combos": [
+      {
+        "name": "Bắp và nước",
+        "price": 10000,
+        "quantity": 1
+      }
+    ],
+    "showtimeId": 6
+  }
+]
+
+2. GET /showtime/{id}
+Get showtime details including movie info
+
+Response:
+{
+  "showtimeId": 6,
+  "startTime": "19:30",
+  "showDate": "2025-10-28",
+  "movie": {
+    "title": "Avengers: Endgame",
+    "posterUrl": "https://..."
+  },
+  "room": {
+    "name": "Phòng 1"
+  }
+}
+
+========================================
+CÁCH SỬ DỤNG
+========================================
+
+1. Mở app
+2. Nhấn tab "Vé" ở bottom navigation
+3. Xem danh sách vé đã đặt
+4. Kéo xuống để refresh
+5. Chuyển tab "Sắp tới" / "Đã xem"
+
+========================================
+TODO - TÍNH NĂNG BỔ SUNG
+========================================
+
+□ Tích hợp QR code thật (react-native-qrcode-svg)
+□ Filter theo trạng thái
+□ Chi tiết vé (tap vào card)
+□ Hủy vé (nếu cho phép)
+□ Chia sẻ vé
+□ Thêm vào calendar
+□ Notification trước giờ chiếu
+
+========================================
+QR CODE INTEGRATION (OPTIONAL)
+========================================
+
+Nếu muốn hiển thị QR code thật:
+
+1. Install package:
+   npm install react-native-qrcode-svg react-native-svg
+
+2. Import:
+   import QRCode from 'react-native-qrcode-svg';
+
+3. Replace placeholder:
+   <QRCode
+     value={`BOOKING-${ticket.bookingId}`}
+     size={80}
+     backgroundColor="white"
+     color="black"
+   />
+
+========================================
