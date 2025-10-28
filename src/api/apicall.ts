@@ -372,6 +372,36 @@ class ApiService {
     }
   }
 
+  async getBookingById(bookingId: number): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Getting booking by ID:', bookingId);
+      const response = await apiClient.get(`/bookings/${bookingId}`);
+      console.log('API: Get booking response:', response);
+
+      if (response.data) {
+        if (response.data.code !== undefined) {
+          return response.data;
+        }
+        return {
+          code: response.status || 200,
+          message: 'Success',
+          data: response.data
+        };
+      }
+
+      return {
+        code: response.status || 200,
+        message: 'Success',
+        data: null
+      };
+    } catch (error: any) {
+      console.error('Get booking API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw this.handleApiError(error);
+    }
+  }
+
   async createZaloPayment(bookingId: number): Promise<ApiResponse<any>> {
     try {
       console.log('API: Creating ZaloPay payment for booking:', bookingId);
@@ -472,36 +502,6 @@ class ApiService {
     }
   }
 
-  // Manual confirm booking payment (backup for webhook)
-  async confirmBookingPayment(bookingId: number): Promise<ApiResponse<any>> {
-    try {
-      console.log('API: Manually confirming booking payment:', bookingId);
-      const response = await apiClient.put(`/bookings/${bookingId}/confirm`);
-      console.log('API: Confirm payment response:', response.data);
-
-      // Handle different response structures
-      if (response.data) {
-        if (response.data.code !== undefined) {
-          return response.data;
-        }
-        return {
-          code: response.status || 200,
-          message: response.data.message || 'Success',
-          data: response.data
-        };
-      }
-
-      return {
-        code: response.status || 200,
-        message: 'Success',
-        data: null
-      };
-    } catch (error: any) {
-      console.error('Confirm booking payment API error:', error);
-      throw this.handleApiError(error);
-    }
-  }
-
   // Get user bookings/tickets
   async getUserBookings(): Promise<ApiResponse<any[]>> {
     try {
@@ -567,6 +567,124 @@ class ApiService {
 
 
   // Error handling
+  // Payment callback methods
+
+  /**
+   * Manual confirm payment - Backup method when webhook doesn't work
+   * Called by frontend after user completes payment
+   */
+  async confirmBookingPayment(bookingId: number): Promise<ApiResponse<any>> {
+    try {
+      console.log('=== API: Manual Confirm Payment ===');
+      console.log('Booking ID:', bookingId);
+      console.log('Endpoint:', `/bookings/${bookingId}/confirm`);
+
+      const response = await apiClient.put(`/bookings/${bookingId}/confirm`);
+
+      console.log('=== API: Confirm Response ===');
+      console.log('Status:', response.status);
+      console.log('Data:', JSON.stringify(response.data, null, 2));
+
+      if (response.data) {
+        if (response.data.code !== undefined) {
+          return response.data;
+        }
+        return {
+          code: response.status || 200,
+          message: 'Payment confirmed successfully',
+          data: response.data
+        };
+      }
+
+      return {
+        code: response.status || 200,
+        message: 'Success',
+        data: null
+      };
+    } catch (error: any) {
+      console.error('=== API: Confirm Payment Error ===');
+      console.error('Error:', error.message);
+      console.error('Response:', error.response?.data);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Check payment status from ZaloPay
+   * Used to verify if payment was successful
+   */
+  async checkZaloPayStatus(bookingId: number): Promise<ApiResponse<any>> {
+    try {
+      console.log('=== API: Check ZaloPay Status ===');
+      console.log('Booking ID:', bookingId);
+
+      const response = await apiClient.get(`/bookings/${bookingId}/payment-status`);
+
+      console.log('=== API: Payment Status Response ===');
+      console.log('Data:', JSON.stringify(response.data, null, 2));
+
+      if (response.data) {
+        if (response.data.code !== undefined) {
+          return response.data;
+        }
+        return {
+          code: response.status || 200,
+          message: 'Success',
+          data: response.data
+        };
+      }
+
+      return {
+        code: response.status || 200,
+        message: 'Success',
+        data: null
+      };
+    } catch (error: any) {
+      console.error('=== API: Check Payment Status Error ===');
+      console.error('Error:', error.message);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Query ZaloPay order status directly
+   * Alternative method to check payment status
+   */
+  async queryZaloPayOrder(appTransId: string): Promise<ApiResponse<any>> {
+    try {
+      console.log('=== API: Query ZaloPay Order ===');
+      console.log('App Trans ID:', appTransId);
+
+      const response = await apiClient.post('/payment/zalopay/query', {
+        appTransId: appTransId
+      });
+
+      console.log('=== API: Query Response ===');
+      console.log('Data:', JSON.stringify(response.data, null, 2));
+
+      if (response.data) {
+        if (response.data.code !== undefined) {
+          return response.data;
+        }
+        return {
+          code: response.status || 200,
+          message: 'Success',
+          data: response.data
+        };
+      }
+
+      return {
+        code: response.status || 200,
+        message: 'Success',
+        data: null
+      };
+    } catch (error: any) {
+      console.error('=== API: Query Order Error ===');
+      console.error('Error:', error.message);
+      throw this.handleApiError(error);
+    }
+  }
+
   private handleApiError(error: any): Error {
     if (error.response) {
       // Server responded with error status

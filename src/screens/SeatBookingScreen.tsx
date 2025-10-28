@@ -63,7 +63,7 @@ const SeatBookingScreen = ({ navigation, route }: any) => {
   const posterImage = route?.params?.PosterImage || routerState?.PosterImage || routerState?.posterUrl;
   const bgImage = route?.params?.BgImage || routerState?.BgImage || routerState?.posterUrl;
 
-  console.log('SeatBookingScreen received:', { movieId, showtimeId, showtime });
+
 
   const [price, setPrice] = useState<number>(0);
   const [twoDSeatArray, setTwoDSeatArray] = useState<any[][]>([]);
@@ -123,11 +123,9 @@ const SeatBookingScreen = ({ navigation, route }: any) => {
         setIsLoadingSeats(true);
         setSeatsError(null);
 
-        console.log('Fetching seats for showtime:', showtimeId);
         const response = await apiService.getSeatsByShowtimeId(showtimeId);
 
         if (response && response.data) {
-          console.log('Seats data received:', response.data);
           const transformedSeats = transformSeatsData(response.data);
           setTwoDSeatArray(transformedSeats);
         } else {
@@ -206,16 +204,9 @@ const SeatBookingScreen = ({ navigation, route }: any) => {
 
       // Extract seat IDs from selected seats
       const seatIds = selectedSeatArray.map(s => s.seatId);
-      console.log('Extracted seat IDs:', seatIds);
-
-      console.log('=== Step 1: Holding seats ===');
-      console.log('Showtime ID:', showtimeId);
-      console.log('Seat IDs:', seatIds);
 
       // Step 1: Hold seats temporarily (booking hold)
       const holdResponse = await apiService.holdSeats(showtimeId, seatIds);
-      console.log('=== Hold Response ===');
-      console.log('Response:', JSON.stringify(holdResponse, null, 2));
 
       if (!holdResponse) {
         throw new Error('Không nhận được phản hồi từ server khi giữ ghế.');
@@ -226,7 +217,7 @@ const SeatBookingScreen = ({ navigation, route }: any) => {
         throw new Error(holdResponse.message || 'Không thể giữ ghế. Vui lòng thử lại.');
       }
 
-      console.log('✅ Seats held successfully');
+
 
       // Prepare data for combo selection
       const bookingData = {

@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   ToastAndroid,
   ActivityIndicator,
-  Image,
-  Linking,
   Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -63,10 +61,10 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
     }
 
     if (!bookingData?.bookingId) {
-      ToastAndroid.showWithGravity(
-        'Không tìm thấy booking ID',
-        ToastAndroid.SHORT,
-        ToastAndroid.BOTTOM,
+      Alert.alert(
+        'Lỗi',
+        'Không tìm thấy booking ID. Vui lòng đặt vé lại.',
+        [{ text: 'OK' }]
       );
       return;
     }
@@ -74,14 +72,31 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
     try {
       setIsProcessing(true);
 
-      console.log('Creating payment for booking:', bookingData.bookingId);
+      console.log('=== Starting Payment Process ===');
+      console.log('Booking ID:', bookingData.bookingId);
+      console.log('Payment Method:', selectedMethod);
+      console.log('Total Price:', bookingData.totalPrice);
+      console.log('Booking Data:', JSON.stringify(bookingData, null, 2));
+
+      // Validate booking data
+      if (!bookingData.totalPrice || bookingData.totalPrice <= 0) {
+        throw new Error('Số tiền thanh toán không hợp lệ');
+      }
+
+      if (!bookingData.seats || bookingData.seats.length === 0) {
+        throw new Error('Chưa có ghế được chọn');
+      }
 
       // Create payment based on selected method
       let paymentResponse;
 
       if (selectedMethod === 'zalopay') {
         console.log('Creating ZaloPay payment...');
+        console.log('API Endpoint will be: /bookings/' + bookingData.bookingId + '/zalopay-payment');
+
         paymentResponse = await apiService.createZaloPayment(bookingData.bookingId);
+
+        console.log('Payment response received:', paymentResponse ? 'Yes' : 'No');
       } else {
         throw new Error('Phương thức thanh toán chưa được hỗ trợ');
       }
@@ -92,7 +107,23 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
       console.log('Response keys:', paymentResponse ? Object.keys(paymentResponse) : 'null');
 
       if (!paymentResponse) {
+        Alert.alert(
+          'Lỗi Backend',
+          'Backend không trả về response.\n\nKiểm tra:\n1. Backend có đang chạy không?\n2. Endpoint /bookings/' + bookingData.bookingId + '/zalopay-payment có tồn tại không?\n3. Check backend logs',
+          [{ text: 'OK' }]
+        );
         throw new Error('Không nhận được phản hồi từ server thanh toán.');
+      }
+
+      // Check if response indicates an error
+      if (paymentResponse.code && paymentResponse.code !== 200 && paymentResponse.code !== 1) {
+        const errorMsg = paymentResponse.message || 'Lỗi không xác định từ backend';
+        Alert.alert(
+          'Lỗi từ Backend',
+          `Code: ${paymentResponse.code}\nMessage: ${errorMsg}\n\nBooking ID: ${bookingData.bookingId}`,
+          [{ text: 'OK' }]
+        );
+        throw new Error(errorMsg);
       }
 
       // Get payment data from response
@@ -102,20 +133,20 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
       console.log('Payment data keys:', paymentData ? Object.keys(paymentData) : 'null');
 
       // Get payment URL from response - try multiple possible field names
-      const paymentUrl = paymentData.order_url || 
-                        paymentData.orderUrl || 
-                        paymentData.payment_url ||
-                        paymentData.paymentUrl ||
-                        paymentData.url;
-      
-      const zpTransToken = paymentData.zp_trans_token || 
-                          paymentData.zpTransToken ||
-                          paymentData.trans_token ||
-                          paymentData.transToken;
-      
-      const returnCode = paymentData.return_code || 
-                        paymentData.returnCode ||
-                        paymentData.code;
+      const paymentUrl = paymentData.order_url ||
+        paymentData.orderUrl ||
+        paymentData.payment_url ||
+        paymentData.paymentUrl ||
+        paymentData.url;
+
+      const zpTransToken = paymentData.zp_trans_token ||
+        paymentData.zpTransToken ||
+        paymentData.trans_token ||
+        paymentData.transToken;
+
+      const returnCode = paymentData.return_code ||
+        paymentData.returnCode ||
+        paymentData.code;
 
       console.log('=== Extracted Values ===');
       console.log('Payment URL:', paymentUrl);
@@ -124,10 +155,10 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
 
       // Check ZaloPay return code
       if (returnCode !== undefined && returnCode !== 1 && returnCode !== 200) {
-        const errorMessage = paymentData.return_message || 
-                           paymentData.returnMessage || 
-                           paymentData.message ||
-                           'Lỗi từ ZaloPay';
+        const errorMessage = paymentData.return_message ||
+          paymentData.returnMessage ||
+          paymentData.message ||
+          'Lỗi từ ZaloPay';
         console.error('ZaloPay error:', errorMessage);
         throw new Error(`ZaloPay Error: ${errorMessage} (Code: ${returnCode})`);
       }
@@ -155,47 +186,22 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
       console.log('Payment URL:', paymentUrl);
       console.log('ZP Trans Token:', zpTransToken);
 
-      // Show alert with URL for debugging
-      Alert.alert(
-        'Chọn cách mở thanh toán',
-        `URL: ${paymentUrl.substring(0, 50)}...`,
-        [
-          {
-            text: 'Mở trong WebView',
-            onPress: () => {
-              console.log('Opening payment in WebView');
-              
-              if (navigation?.navigate) {
-                navigation.navigate('ZaloPayWebView', {
-                  paymentUrl: paymentUrl,
-                  bookingData: completeBookingData,
-                });
-              } else {
-                navigate('/zalopay-webview', {
-                  state: {
-                    paymentUrl: paymentUrl,
-                    bookingData: completeBookingData,
-                  }
-                });
-              }
-            }
-          },
-          {
-            text: 'Mở trong Browser',
-            onPress: () => {
-              console.log('Opening payment in external browser');
-              Linking.openURL(paymentUrl).catch(err => {
-                console.error('Error opening browser:', err);
-                Alert.alert('Lỗi', 'Không thể mở trình duyệt');
-              });
-            }
-          },
-          {
-            text: 'Hủy',
-            style: 'cancel'
+      // Auto-open in WebView (no alert)
+      console.log('Auto-opening payment in WebView');
+
+      if (navigation?.navigate) {
+        navigation.navigate('ZaloPayWebView', {
+          paymentUrl: paymentUrl,
+          bookingData: completeBookingData,
+        });
+      } else {
+        navigate('/zalopay-webview', {
+          state: {
+            paymentUrl: paymentUrl,
+            bookingData: completeBookingData,
           }
-        ]
-      );
+        });
+      }
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
@@ -203,15 +209,37 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
+        stack: error.stack,
       });
 
       let errorMessage = 'Thanh toán thất bại. Vui lòng thử lại.';
+      let errorDetails = '';
 
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+        errorDetails = `Status: ${error.response.status}`;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+        errorDetails = `Status: ${error.response.status}`;
       } else if (error.message) {
         errorMessage = error.message;
       }
+
+      // Show detailed error in Alert for debugging
+      Alert.alert(
+        'Lỗi thanh toán',
+        `${errorMessage}\n\n${errorDetails}\n\nBooking ID: ${bookingData?.bookingId || 'N/A'}`,
+        [
+          {
+            text: 'Thử lại',
+            onPress: handlePayment
+          },
+          {
+            text: 'Đóng',
+            style: 'cancel'
+          }
+        ]
+      );
 
       ToastAndroid.showWithGravity(
         errorMessage,
@@ -255,7 +283,7 @@ const PaymentMethodScreen = ({ navigation, route }: any) => {
         {/* Booking Summary */}
         <View style={styles.summaryContainer}>
           <Text style={styles.summaryTitle}>Thông tin đặt vé</Text>
-          
+
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Số ghế:</Text>
             <Text style={styles.summaryValue}>{bookingData?.seats?.length || 0} ghế</Text>

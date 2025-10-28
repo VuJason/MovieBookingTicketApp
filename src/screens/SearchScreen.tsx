@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, FlatList, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, FlatList, Image, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useNavigate } from 'react-router-native';
 
 interface Movie {
   id: number;
@@ -18,6 +19,7 @@ interface Movie {
 }
 
 export default function SearchScreen() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,7 +85,11 @@ export default function SearchScreen() {
           data={movies}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <View style={styles.movieCard}>
+            <TouchableOpacity
+              style={styles.movieCard}
+              onPress={() => navigate(`/movie/${item.id}`)}
+              activeOpacity={0.7}
+            >
               <Image source={{ uri: item.posterUrl }} style={styles.image} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>{item.name}</Text>
@@ -94,7 +100,7 @@ export default function SearchScreen() {
                   {item.categoryNames.join(', ')}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       ) : query ? (

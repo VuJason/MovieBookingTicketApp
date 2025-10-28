@@ -9,7 +9,7 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
-  Dimensions,
+
   Switch,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { UserProfile, ProfileSection } from '../types/User';
 import { apiService } from '../api/apicall';
 
-const { width } = Dimensions.get('window');
+
 
 interface ProfileScreenProps {
   navigation: any;
@@ -31,20 +31,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
 
-  // Mock user data - trong thực tế sẽ fetch từ API
-  const mockUserProfile: UserProfile = {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-    phone: '+1 234 567 8900',
-    dateOfBirth: '1990-05-15',
-    memberSince: '2022-01-15',
-    totalBookings: 47,
-    favoriteGenres: ['Action', 'Thriller', 'Sci-Fi'],
-    loyaltyPoints: 2450,
-    membershipTier: 'Gold',
-  };
+
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -56,10 +43,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     const fetchAccountDetails = async () => {
       try {
         setIsLoading(true);
-        console.log('Fetching account details...');
-        
         const response = await apiService.getAccountDetails();
-        console.log('Account details response:', response);
         
         if (response && response.data) {
           const accountData = response.data;
@@ -80,14 +64,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           };
           
           setUserProfile(profile);
-        } else {
-          // Fallback to mock data if API fails
-          setUserProfile(mockUserProfile);
         }
       } catch (error) {
         console.error('Error fetching account details:', error);
-        // Fallback to mock data on error
-        setUserProfile(mockUserProfile);
       } finally {
         setIsLoading(false);
       }
@@ -119,17 +98,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       id: 'account',
       items: [
         {
-          id: 'edit-profile',
-          title: 'Edit Profile',
-          subtitle: 'Change Password',
-          icon: 'person-outline',
-          onPress: () => navigation.navigate('EditProfile'),
-          showChevron: true,
-        },
-        {
           id: 'booking-history',
           title: 'Booking History',
-          subtitle: `${userProfile?.totalBookings || 0} bookings`,
           icon: 'ticket-outline',
           onPress: () => navigation.navigate('Tickets'),
           showChevron: true,
@@ -174,21 +144,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         style={styles.headerGradient}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          
           <Text style={styles.headerTitle}>My Profile</Text>
-          
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Icon name="settings-outline" size={24} color="#fff" />
-          </TouchableOpacity>
         </View>
       </LinearGradient>
     </View>
@@ -354,31 +310,14 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   headerTitle: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
@@ -415,33 +354,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#000',
   },
-  membershipBadge: {
-    position: 'absolute',
-    top: -5,
-    left: -5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#000',
-  },
-  goldBadge: {
-    backgroundColor: '#FFD700',
-  },
-  silverBadge: {
-    backgroundColor: '#C0C0C0',
-  },
-  bronzeBadge: {
-    backgroundColor: '#CD7F32',
-  },
-  platinumBadge: {
-    backgroundColor: '#E5E4E2',
-  },
-  membershipText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
+
   userName: {
     color: '#fff',
     fontSize: 24,
@@ -453,22 +366,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
   },
-  pointsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,215,0,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,215,0,0.3)',
-  },
-  pointsText: {
-    color: '#FFD700',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
+
   section: {
     marginBottom: 24,
   },

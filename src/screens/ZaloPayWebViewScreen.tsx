@@ -29,13 +29,25 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
   const [currentUrl, setCurrentUrl] = useState(paymentUrl);
   const [loadAttempts, setLoadAttempts] = useState(0);
 
+  // Auto-hide loading after 3 seconds as fallback
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.log('Auto-hiding loading after 3 seconds');
+        setLoading(false);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   // Handle back button
   const handleBackPress = () => {
     if (canGoBack && webViewRef.current) {
       webViewRef.current.goBack();
       return true;
     }
-    
+
     Alert.alert(
       'Hủy thanh toán?',
       'Bạn có chắc muốn hủy thanh toán không?',
@@ -68,89 +80,74 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
     console.log('Main document URL:', request.mainDocumentURL);
     console.log('Is for main frame:', request.isForMainFrame);
 
-    // Allow ZaloPay deep links to open in external app
-    if (url.startsWith('zalopay://') || url.includes('zalopay.vn/openinapp')) {
-      console.log('Opening ZaloPay app...');
-      Linking.openURL(url).catch(err => {
-        console.error('Error opening ZaloPay app:', err);
-        Alert.alert(
-          'Không thể mở ZaloPay',
-          'Vui lòng cài đặt ứng dụng ZaloPay để tiếp tục thanh toán.',
-          [{ text: 'OK' }]
-        );
-      });
+    // Handle payment callback deep link
+    if (url.startsWith('moviebooking://payment/callback')) {
+      console.log('Payment callback detected in WebView!');
+      console.log('Callback URL:', url);
+
+      // Parse URL to extract params
+      try {
+        const urlParts = url.split('?');
+        if (urlParts.length > 1) {
+          const queryString = urlParts[1];
+          const params: Record<string, string> = {};
+
+          // Parse query string manually
+          queryString.split('&').forEach((param: string) => {
+            const [key, value] = param.split('=');
+            if (key && value) {
+              params[key] = decodeURIComponent(value);
+            }
+          });
+
+          const status = params.status;
+          const bookingId = params.bookingId;
+
+          console.log('Parsed params:', { status, bookingId });
+
+          // Close WebView and navigate to callback screen
+          if (navigation?.navigate) {
+            navigation.navigate('PaymentCallback', { url: url });
+          } else {
+            navigate(`/payment/callback?status=${status}&bookingId=${bookingId}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing callback URL:', error);
+      }
+
       return false; // Don't load in WebView
     }
 
-    // Allow normal web URLs
+    // Block ZaloPay app deep links - keep payment in WebView
+    if (url.startsWith('zalopay://')) {
+      console.log('Blocked ZaloPay app deep link, keeping in WebView');
+      return false; // Don't open app, stay in WebView
+    }
+
+    // Block "open in app" links - force web payment
+    if (url.includes('zalopay.vn/openinapp') || url.includes('/openinapp')) {
+      console.log('Blocked "open in app" link, keeping in WebView');
+      return false; // Don't open app
+    }
+
+    // Allow all other web URLs (including ZaloPay web payment)
     return true;
   };
 
   // Handle navigation state changes
   const handleNavigationStateChange = (navState: any) => {
     setCanGoBack(navState.canGoBack);
-    
-    // Check if payment is completed
+
     const url = navState.url;
     console.log('=== Navigation state changed ===');
     console.log('URL:', url);
     console.log('Title:', navState.title);
     console.log('Loading:', navState.loading);
-    console.log('Can go back:', navState.canGoBack);
-    console.log('Can go forward:', navState.canGoForward);
 
-    // Check for success callback
-    if (url.includes('payment/success') || url.includes('status=success') || url.includes('status=1')) {
-      console.log('Payment successful!');
-      Alert.alert(
-        'Thanh toán thành công',
-        'Đơn hàng của bạn đã được thanh toán thành công!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate to home
-              if (navigation?.navigate) {
-                navigation.navigate('Home');
-              } else {
-                navigate('/');
-              }
-            },
-          },
-        ]
-      );
-    }
-
-    // Check for failure callback
-    if (url.includes('payment/failed') || url.includes('status=failed') || url.includes('status=-1')) {
-      console.log('Payment failed!');
-      Alert.alert(
-        'Thanh toán thất bại',
-        'Đã có lỗi xảy ra trong quá trình thanh toán. Vui lòng thử lại.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (navigation?.goBack) {
-                navigation.goBack();
-              } else {
-                navigate(-1);
-              }
-            },
-          },
-        ]
-      );
-    }
-
-    // Check for cancel callback
-    if (url.includes('payment/cancel') || url.includes('status=cancel') || url.includes('status=0')) {
-      console.log('Payment cancelled!');
-      if (navigation?.goBack) {
-        navigation.goBack();
-      } else {
-        navigate(-1);
-      }
-    }
+    // Note: We don't need to check for success/failed here
+    // ZaloPay will redirect to moviebooking://payment/callback
+    // which is handled by handleShouldStartLoadWithRequest
   };
 
   return (
@@ -163,8 +160,8 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
           <Icon name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thanh toán ZaloPay</Text>
-        <TouchableOpacity 
-          style={styles.debugButton} 
+        <TouchableOpacity
+          style={styles.debugButton}
           onPress={() => {
             Alert.alert(
               'Debug Info',
@@ -202,17 +199,29 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
               const { nativeEvent } = syntheticEvent;
               console.log('WebView load started:', nativeEvent.url);
               setCurrentUrl(nativeEvent.url);
-              setLoading(true);
+              
+              // Only show loading for initial page load, not for subsequent navigations
+              if (loadAttempts === 0) {
+                setLoading(true);
+              }
+              
               setError(null);
               setLoadAttempts(prev => prev + 1);
             }}
             onLoadEnd={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
               console.log('WebView load ended:', nativeEvent.url);
-              setLoading(false);
-              
+              console.log('Load attempts:', loadAttempts);
+
+              // Hide loading after first page load only
+              if (loadAttempts <= 2) {
+                setTimeout(() => {
+                  setLoading(false);
+                }, 800);
+              }
+
               // If we've been loading for too long, show error
-              if (loadAttempts > 10) {
+              if (loadAttempts > 20) {
                 setError('Trang web tải quá lâu. Vui lòng thử lại.');
               }
             }}
@@ -231,17 +240,38 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
             onNavigationStateChange={handleNavigationStateChange}
             onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
             javaScriptEnabled={true}
-            javaScriptCanOpenWindowsAutomatically={true}
+            javaScriptCanOpenWindowsAutomatically={false}
             domStorageEnabled={true}
-            startInLoadingState={true}
+            startInLoadingState={false}
             scalesPageToFit={true}
-            mixedContentMode="always"
+            mixedContentMode="compatibility"
             setSupportMultipleWindows={false}
             cacheEnabled={false}
-            incognito={true}
-            userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+            incognito={false}
+            thirdPartyCookiesEnabled={true}
+            sharedCookiesEnabled={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            allowFileAccess={true}
+            allowUniversalAccessFromFileURLs={true}
+            userAgent="Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            onMessage={(event) => {
+              console.log('WebView message:', event.nativeEvent.data);
+            }}
+            injectedJavaScript={`
+              // Log page load
+              console.log('Page loaded:', window.location.href);
+              
+              // Hide loading spinner if exists
+              setTimeout(() => {
+                const spinners = document.querySelectorAll('[class*="loading"], [class*="spinner"]');
+                spinners.forEach(el => el.style.display = 'none');
+              }, 2000);
+              
+              true; // Required for injectedJavaScript
+            `}
           />
-          
+
           {/* Error Display */}
           {error && (
             <View style={styles.errorOverlay}>
@@ -280,6 +310,16 @@ const ZaloPayWebViewScreen = ({ navigation, route }: any) => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0088FF" />
           <Text style={styles.loadingText}>Đang tải...</Text>
+          {loadAttempts > 3 && (
+            <TouchableOpacity
+              style={styles.hideLoadingButton}
+              onPress={() => {
+                console.log('Force hiding loading overlay');
+                setLoading(false);
+              }}>
+              <Text style={styles.hideLoadingText}>Ẩn loading</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -340,7 +380,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    zIndex: 999,
   },
   loadingText: {
     marginTop: 12,
@@ -391,6 +432,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  hideLoadingButton: {
+    marginTop: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  hideLoadingText: {
+    color: '#fff',
+    fontSize: 14,
   },
 });
 

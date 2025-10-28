@@ -102,19 +102,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleSignUp = () => {
-    console.log('Navigate to Register clicked');
-    console.log('Navigation object:', navigation);
-    try {
-      navigation.navigate('Register');
-    } catch (error) {
-      console.error('Navigation error:', error);
-      // Fallback: show alert if navigation fails
-      Alert.alert(
-        'Navigation Error',
-        'Unable to navigate to Register screen. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
+    navigation.navigate('Register');
   };
 
   return (

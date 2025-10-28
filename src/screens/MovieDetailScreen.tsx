@@ -245,6 +245,11 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
   // State for selected date
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // Reset selected showtime when date changes
+  useEffect(() => {
+    setSelectedShowtime(null);
+  }, [selectedDate]);
+
   // Get available dates from showtimes
   const renderGenreTag = (genre: string, index: number) => (
     <View key={index} style={styles.genreTag}>
@@ -423,16 +428,6 @@ const MovieDetailScreen: React.FC<MovieDetailScreenProps> = ({ navigation, route
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
               />
-            )}
-
-            {/* Show selected showtime info */}
-            {selectedShowtime && (
-              <View style={styles.selectedShowtimeInfo}>
-                <Icon name="checkmark-circle" size={20} color="#4CAF50" />
-                <Text style={styles.selectedShowtimeText}>
-                  Đã chọn: {selectedShowtime.room.type.name} lúc {selectedShowtime.startTime.split(' ')[1]}
-                </Text>
-              </View>
             )}
           </View>
 
